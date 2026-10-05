@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="cs" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>BMI Health PRO & Mobilní Tracker</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Mobilní BMI kalkulačka a týdenní deník hmotnosti s motivacemi a milníky." />
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Tailwind CSS, Lucide Icons, Chart.js & Canvas Confetti -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Custom Scrollbar */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Gauge needle smooth rotation */
+    .gauge-needle {
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: 100px 100px;
+    }
+
+    /* Active Tab Styles */
+    .tab-btn.active {
+      background-color: rgba(99, 102, 241, 0.2);
+      color: #818cf8;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: #6366f1;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+  </style>
+</head>
+<body class="min-h-full flex flex-col bg-slate-950 text-slate-100 pb-20 sm:pb-8">
+
+  <header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 py-3.5">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-xl">
+          ⚖️
+        </div>
+        <div>
+          <h1 class="font-extrabold text-base sm:text-lg text-white leading-none flex items-center gap-2">
+            BMI Health <span class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">PRO</span>
+          </h1>
+          <p class="text-[11px] text-slate-400 mt-0.5">Osobní deník & analýza hmotnosti</p>
+        </div>
+      </div>
+
+      <!-- User Profile Button -->
+      <div class="flex items-center gap-2">
+        <button onclick="openProfileModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-medium text-slate-200 transition active:scale-95">
+          <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-bold text-white uppercase" id="userAvatar">
+            👤
+          </div>
+          <span id="userNameDisplay" class="max-w-[90px] truncate">Můj profil</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-5 flex-1 w-full">
+
+    <div class="flex items-center justify-between mb-5 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto no-scrollbar">
+      <button onclick="switchTab('overview')" id="tabNav-overview" class="tab-btn active flex-1 min-w-[90px] py-2 px-3 rounded-xl text-xs font-semibold text-slate-400 flex items-center justify-center gap-1.5 transition-all">
+        <span class="tab-icon text-sm">📊</span>
+        <span>Přehled</span>
+      </button>
+      <button onclick="switchTab('log')" id="tabNav-log" class="tab-btn flex-1 min-w-[110px] py-2 px-3 rounded-xl text-xs font-semibold text-slate-400 flex items-center justify-center gap-1.5 transition-all">
+        <span class="tab-icon text-sm">📝</span>
+        <span>Týdenní vážení</span>
+      </button>
+      <button onclick="switchTab('chart')" id="tabNav-chart" class="tab-btn flex-1 min-w-[90px] py-2 px-3 rounded-xl text-xs font-semibold text-slate-400 flex items-center justify-center gap-1.5 transition-all">
+        <span class="tab-icon text-sm">📈</span>
+        <span>Graf & Cíl</span>
+      </button>
+      <button onclick="switchTab('achievements')" id="tabNav-achievements" class="tab-btn flex-1 min-w-[90px] py-2 px-3 rounded-xl text-xs font-semibold text-slate-400 flex items-center justify-center gap-1.5 transition-all">
+        <span class="tab-icon text-sm">🏆</span>
+        <span>Milníky</span>
+      </button>
+    </div>
+
+    <div id="tabContent-overview" class="tab-pane space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Physical Parameters Form -->
+        <section class="lg:col-span-5 flex flex-col gap-5">
+          <div class="glass-panel p-5 sm:p-6 rounded-3xl shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <span>⚡</span> Tělesná kalkulačka
+              </h2>
+              <span class="text-xs text-indigo-400 font-medium">Okamžitý výpočet</span>
+            </div>
+
+            <form id="bmiForm" class="space-y-4" onsubmit="event.preventDefault()">
+              <!-- Gender Switcher -->
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-2">Pohlaví 🚻</label>
+                <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950/60 rounded-2xl border border-slate-800">
+                  <button type="button" id="genderMaleBtn" onclick="setGender('male')" class="gender-btn flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-medium text-xs sm:text-sm transition-all duration-200 bg-indigo-600 text-white shadow-md">
+                    <span>👨</span>
+                    <span>Muž</span>
+                  </button>
+                  <button type="button" id="genderFemaleBtn" onclick="setGender('female')" class="gender-btn flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-medium text-xs sm:text-sm transition-all duration-200 text-slate-400 hover:text-white">
+                    <span>👩</span>
+                    <span>Žena</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Age & Height -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="ageInput" class="block text-xs font-medium text-slate-400 mb-1">Věk (roky) 🎂</label>
+                  <input type="number" id="ageInput" min="10" max="120" value="28" required class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 font-semibold text-sm" />
+                </div>
+
+                <div>
+                  <label for="heightInput" class="block text-xs font-medium text-slate-400 mb-1">Výška (cm) 📏</label>
+                  <input type="number" id="heightInput" min="100" max="230" value="175" required class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 font-semibold text-sm" />
+                </div>
+              </div>
+
+              <!-- Current Weight Slider -->
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label for="currentWeightInput" class="text-xs font-medium text-slate-400">Aktuální váha ⚖️</label>
+                  <span id="currentWeightVal" class="text-xs font-bold text-indigo-400">72.0 kg</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input type="range" id="currentWeightRange" min="30" max="200" step="0.5" value="72" class="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer" />
+                  <input type="number" id="currentWeightInput" min="30" max="200" step="0.1" value="72" class="w-20 bg-slate-950/60 border border-slate-800 rounded-xl px-2 py-1.5 text-center text-slate-100 font-semibold text-sm focus:outline-none focus:border-indigo-500" />
+                </div>
+              </div>
+
+              <!-- Target Weight Slider -->
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label for="targetWeightInput" class="text-xs font-medium text-slate-400">Cílová váha 🎯</label>
+                  <span id="targetWeightVal" class="text-xs font-bold text-emerald-400">68.0 kg</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input type="range" id="targetWeightRange" min="30" max="200" step="0.5" value="68" class="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer" />
+                  <input type="number" id="targetWeightInput" min="30" max="200" step="0.1" value="68" class="w-20 bg-slate-950/60 border border-slate-800 rounded-xl px-2 py-1.5 text-center text-slate-100 font-semibold text-sm focus:outline-none focus:border-emerald-500" />
+                </div>
+              </div>
+
+              <div class="pt-2">
+                <button type="button" onclick="quickLogCurrentWeight()" class="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 hover:opacity-95 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-500/20 transition duration-200 flex items-center justify-center gap-2 active:scale-98">
+                  <span>➕</span>
+                  <span>Uložit jako dnešní měření</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Right side: Gauge & Advice -->
+        <section class="lg:col-span-7 flex flex-col gap-5">
+          <!-- Main Gauge & BMI Result -->
+          <div class="glass-panel p-6 rounded-3xl shadow-2xl relative overflow-hidden">
+            <div id="statusGlow" class="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+              
+              <!-- Radial SVG Gauge -->
+              <div class="relative w-60 h-36 flex flex-col items-center justify-end shrink-0">
+                <svg class="w-60 h-32 overflow-visible" viewBox="0 0 200 115">
+                  <defs>
+                    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                  </defs>
+
+                  <path d="M 25 100 A 75 75 0 0 1 36.1 60.8" fill="none" stroke="#38bdf8" stroke-width="14" stroke-linecap="round" />
+                  <path d="M 36.1 60.8 A 75 75 0 0 1 100 25" fill="none" stroke="#10b981" stroke-width="14" />
+                  <path d="M 100 25 A 75 75 0 0 1 153 47" fill="none" stroke="#f59e0b" stroke-width="14" />
+                  <path d="M 153 47 A 75 75 0 0 1 175 100" fill="none" stroke="#f43f5e" stroke-width="14" stroke-linecap="round" />
+
+                  <text x="18" y="112" fill="#94a3b8" font-size="8" font-weight="600">15</text>
+                  <text x="25" y="52" fill="#38bdf8" font-size="8" font-weight="700">18.5</text>
+                  <text x="94" y="16" fill="#10b981" font-size="9" font-weight="800">25</text>
+                  <text x="157" y="40" fill="#f59e0b" font-size="8" font-weight="700">30</text>
+                  <text x="175" y="112" fill="#f43f5e" font-size="8" font-weight="600">35+</text>
+
+                  <g id="gaugeNeedleGroup" class="gauge-needle" style="transform: rotate(0deg);">
+                    <line x1="100" y1="100" x2="100" y2="38" stroke="#f8fafc" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>
+                    <polygon points="96,100 100,34 104,100" fill="#6366f1" />
+                    <circle cx="100" cy="100" r="8" fill="#1e293b" stroke="#818cf8" stroke-width="3" />
+                    <circle cx="100" cy="100" r="3" fill="#ffffff" />
+                  </g>
+                </svg>
+              </div>
+
+              <!-- BMI Score Display -->
+              <div class="flex-1 text-center md:text-left space-y-2">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Aktuální stav těla</span>
+                <div class="flex items-baseline justify-center md:justify-start gap-3">
+                  <span id="bmiScoreText" class="text-4xl sm:text-5xl font-extrabold text-white tracking-tight">23.5</span>
+                  <span id="bmiCategoryBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    🥗 Normální váha
+                  </span>
+                </div>
+                <p id="bmiDescriptionText" class="text-xs text-slate-300 leading-relaxed pt-1">
+                  Vaše hmotnost je v ideálním rozmezí. Pokračujte ve vyváženém životním stylu!
+                </p>
+              </div>
+            </div>
+
+            <!-- Target Summary Stats -->
+            <div class="mt-6 pt-4 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div class="bg-slate-950/40 p-3 rounded-2xl border border-slate-800/80 text-center">
+                <span class="text-[10px] font-semibold text-slate-400 uppercase block">Cílové BMI 🎯</span>
+                <span id="targetBmiText" class="text-base sm:text-lg font-bold text-white mt-0.5 block">22.2</span>
+              </div>
+              <div class="bg-slate-950/40 p-3 rounded-2xl border border-slate-800/80 text-center">
+                <span class="text-[10px] font-semibold text-slate-400 uppercase block">Rozdíl k cíli 🏁</span>
+                <span id="targetWeightDiffText" class="text-base sm:text-lg font-bold text-emerald-400 mt-0.5 block">-4.0 kg</span>
+              </div>
+              <div class="col-span-2 sm:col-span-1 bg-slate-950/40 p-3 rounded-2xl border border-slate-800/80 text-center">
+                <span class="text-[10px] font-semibold text-slate-400 uppercase block">Progres 🚀</span>
+                <span id="totalProgressDiffText" class="text-base sm:text-lg font-bold text-indigo-400 mt-0.5 block">0.0 kg</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Category Advice Card -->
+          <div id="categoryAdviceCard" class="glass-panel p-4 sm:p-5 rounded-3xl flex items-start gap-4 border border-indigo-500/20 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-950">
+            <div id="adviceIcon" class="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-2xl shrink-0">
+              💡
+            </div>
+            <div class="space-y-1">
+              <h3 id="adviceTitle" class="text-xs font-bold text-indigo-300 uppercase tracking-wider">Osobní doporučení ke korigování váhy:</h3>
+              <p id="adviceBody" class="text-xs text-slate-200 leading-relaxed">
+                Zadejte své parametry pro zobrazení doporučení.
+              </p>
+            </div>
+          </div>
+
+          <!-- Coach Motivational Card -->
+          <div class="glass-panel p-4 sm:p-5 rounded-3xl flex items-center gap-4 bg-gradient-to-r from-indigo-950/50 via-slate-900 to-purple-950/40">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-2xl shrink-0">
+              🤖
+            </div>
+            <div class="space-y-1">
+              <h3 class="text-xs font-bold text-indigo-300 uppercase tracking-wider">Osobní BMI Kouč říká:</h3>
+              <p id="coachQuote" class="text-xs text-slate-200 italic">
+                "Každý malý krok se počítá! Zapisuj si váhu pravidelně a sleduj svoji cestu k úspěchu."
+              </p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <div id="tabContent-log" class="tab-pane hidden space-y-6">
+      
+      <!-- New Weekly Entry Card -->
+      <div class="glass-panel p-5 sm:p-6 rounded-3xl shadow-xl space-y-4 border border-indigo-500/20">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">📆</span>
+            <div>
+              <h2 class="text-sm font-bold text-white">Nové týdenní vážení</h2>
+              <p class="text-xs text-slate-400">Přidej nový záznam do svého deníku pokroku</p>
+            </div>
+          </div>
+          <span class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">
+            Týdenní záznam 📝
+          </span>
+        </div>
+
+        <form id="weeklyLogForm" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <!-- Date Picker -->
+            <div>
+              <label for="logDateInput" class="block text-xs font-medium text-slate-400 mb-1">Datum měření 📅</label>
+              <input type="date" id="logDateInput" required class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-medium" />
+            </div>
+
+            <!-- Weight Entry -->
+            <div>
+              <label for="logWeightInput" class="block text-xs font-medium text-slate-400 mb-1">Naměřená váha (kg) ⚖️</label>
+              <input type="number" id="logWeightInput" step="0.1" min="30" max="250" placeholder="Např. 71.5" required class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-bold" />
+            </div>
+
+          </div>
+
+          <!-- Note Input -->
+          <div>
+            <label for="logNoteInput" class="block text-xs font-medium text-slate-400 mb-1">Poznámka k týdnu (volitelné) 💬</label>
+            <input type="text" id="logNoteInput" placeholder="Napiš krátkou poznámku (např. Po tréninku, dobrý týden...)" class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
+          </div>
+
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 active:scale-98">
+            <span>✨</span>
+            <span>Uložit týdenní váhu & aktualizovat progres</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- History Table / Cards -->
+      <div class="glass-panel p-5 rounded-3xl space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <span>📋</span>
+            <span>Historie vážení a záznamů</span>
+          </h3>
+          <button onclick="clearHistory()" class="text-xs text-rose-400/80 hover:text-rose-400 transition flex items-center gap-1">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>Smazat historii</span>
+          </button>
+        </div>
+
+        <div id="historyLogsContainer" class="space-y-2.5 max-h-96 overflow-y-auto no-scrollbar">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+
+    <div id="tabContent-chart" class="tab-pane hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-6 rounded-3xl shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>📉</span> Vývoj váhy v čase
+            </h3>
+            <p class="text-xs text-slate-400">Vizualizace vašeho týdenního klesání či nabírání váhy</p>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-indigo-500 inline-block"></span> Naměřená váha
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Cílová váha
+            </span>
+          </div>
+        </div>
+
+        <div class="h-64 sm:h-80 w-full relative">
+          <canvas id="weightChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Trend Analysis Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="glass-panel p-4 rounded-2xl border border-slate-800">
+          <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
+            <span>📊</span>
+            <span>Týdenní průměrná změna</span>
+          </div>
+          <div id="weeklyRateStat" class="text-xl font-extrabold text-indigo-400">0.0 kg / týden</div>
+          <p class="text-[11px] text-slate-500 mt-1">Sledujte tempo plnění svého cíle.</p>
+        </div>
+
+        <div class="glass-panel p-4 rounded-2xl border border-slate-800">
+          <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
+            <span>🏁</span>
+            <span>Odhad dosažení cíle</span>
+          </div>
+          <div id="targetEstDateStat" class="text-xl font-extrabold text-emerald-400">Pravidelně vážit</div>
+          <p class="text-[11px] text-slate-500 mt-1">Výpočet na základě dosavadních vážení.</p>
+        </div>
+
+        <div class="glass-panel p-4 rounded-2xl border border-slate-800">
+          <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
+            <span>🔥</span>
+            <span>Aktivní série měření</span>
+          </div>
+          <div id="streakStat" class="text-xl font-extrabold text-amber-400">0 týdnů 🔥</div>
+          <p class="text-[11px] text-slate-500 mt-1">Série nepřerušeného týdenního vážení.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-achievements" class="tab-pane hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-6 rounded-3xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🏆</span> Tvoje milníky a odznaky
+            </h3>
+            <p class="text-xs text-slate-400">Plň výzvy a odemykej motivační trofeje za svoji vytrvalost!</p>
+          </div>
+          <span id="badgeScore" class="text-xs font-extrabold px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full">
+            0 / 6 Odemčeno 🎖️
+          </span>
+        </div>
+
+        <!-- Badges Grid -->
+        <div id="badgesGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <!-- Dynamically populated badges -->
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Mobile Navigation Bar -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/90 backdrop-blur-xl border-t border-slate-800 py-2 px-3 sm:hidden">
+    <div class="flex items-center justify-around max-w-md mx-auto">
+      <button onclick="switchTab('overview')" id="mobileNav-overview" class="tab-btn active flex flex-col items-center justify-center gap-0.5 text-slate-400">
+        <span class="text-lg">📊</span>
+        <span class="text-[10px] font-semibold">Přehled</span>
+      </button>
+      <button onclick="switchTab('log')" id="mobileNav-log" class="tab-btn flex flex-col items-center justify-center gap-0.5 text-slate-400">
+        <span class="text-lg">📝</span>
+        <span class="text-[10px] font-semibold">Záznam</span>
+      </button>
+      <button onclick="switchTab('chart')" id="mobileNav-chart" class="tab-btn flex flex-col items-center justify-center gap-0.5 text-slate-400">
+        <span class="text-lg">📈</span>
+        <span class="text-[10px] font-semibold">Graf</span>
+      </button>
+      <button onclick="switchTab('achievements')" id="mobileNav-achievements" class="tab-btn flex flex-col items-center justify-center gap-0.5 text-slate-400">
+        <span class="text-lg">🏆</span>
+        <span class="text-[10px] font-semibold">Milníky</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Profile Settings Modal -->
+  <div id="profileModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden">
+    <div class="glass-panel w-full max-w-md p-6 rounded-3xl shadow-2xl space-y-5 border border-slate-700/80">
+      
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-indigo-600/20 rounded-xl text-indigo-400 text-xl">
+            ⚙️
+          </div>
+          <h3 class="font-bold text-base text-white" id="modalTitle">Nastavení a správa účtu</h3>
+        </div>
+        <button onclick="closeProfileModal()" id="closeModalBtn" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Existing Profiles List -->
+      <div id="existingProfilesContainer" class="space-y-2">
+        <span class="text-xs text-slate-400 font-medium block">Uložené účty / profily:</span>
+        <div id="profilesList" class="space-y-2 max-h-48 overflow-y-auto no-scrollbar"></div>
+      </div>
+
+      <!-- New Profile Form -->
+      <form id="profileForm" class="space-y-3 pt-3 border-t border-slate-800/80" onsubmit="createNewProfile(event)">
+        <span class="text-xs text-slate-400 font-medium block">Přidat nový účet:</span>
+        <div class="flex gap-2">
+          <input type="text" id="modalNameInput" required placeholder="Jméno účtu (např. Alex)" class="flex-1 bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 font-medium text-sm" />
+          <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg transition flex items-center gap-1 shrink-0">
+            ➕ Přidat
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Advice repository
+    const CATEGORY_ADVICE = {
+      underweight: {
+        icon: "🍎",
+        title: "Doporučení pro podváhu",
+        quotes: [
+          "Podváha: Zaměř se na výživnou stravu bohatou na kvalitní bílkoviny a zdravé tuky (ořechy, avokádo, semínka). Síla a svalová hmota ti pomohou se cítit skvěle!",
+          "Při podváze je důležité nabírat hmotu postupně a zdravě. Kombinuj lehké silové cvičení s dostatečným kalorickým příjmem."
+        ]
+      },
+      normal: {
+        icon: "🥗",
+        title: "Doporučení pro ideální váhu",
+        quotes: [
+          "Skvělá forma! Tvé BMI je v ideálním rozmezí. Pokračuj ve vyváženém jídelníčku, dostatku spánku a pravidelném pohybu.",
+          "Výborná práce za udržování kondice! Soustřeď se na pestrost stravy, hydrataci a aktivní odpočinek."
+        ]
+      },
+      overweight: {
+        icon: "⚡",
+        title: "Doporučení pro nadváhu",
+        quotes: [
+          "Nadváha: Každá malá změna se počítá! Zkus zařadit 30 minut svižné procházky denně, omezit slazené nápoje a výsledek na sebe nenechá dlouho čekat.",
+          "Není potřeba drastických diet. Důležitá je vytrvalost – soustřeď se na pravidelný pohyb a dostatek bílkovin v každém jídle."
+        ]
+      },
+      obesity: {
+        icon: "🔥",
+        title: "Doporučení pro redukci váhy",
+        quotes: [
+          "Nejdůležitější krok je ten, který uděláš dnes! Nastav si malé a reálné cíle (např. -0.5 kg týdně). Postupné změny vedou k trvalému zdraví.",
+          "Zůstaň trpělivý/á. Začni s pitným režimem, vynecháním průmyslově zpracovaných potravin a pravidelnými procházkami. Jsi na správné cestě!"
+        ]
+      }
+    };
+
+    const MOTIVATIONAL_QUOTES = [
+      "Každý malý krok se počítá! Zapisuj si váhu pravidelně a sleduj svoji cestu k úspěchu.",
+      "Konzistence vyhrává nad dokonalostí. Pokračuj dál!",
+      "Tvá dnešní snaha je tvým zítřejším úspěchem. Jen tak dál!",
+      "Nezáleží na rychlosti, ale na směru. Jdeš správně!",
+      "Cíle se plní jeden týden po druhém. Věř procesu!"
+    ];
+
+    // Global State
+    let profiles = JSON.parse(localStorage.getItem('bmi_pwa_profiles') || '[]');
+    let activeProfileId = localStorage.getItem('bmi_pwa_active_profile_id') || null;
+    let currentGender = 'male';
+    let chartInstance = null;
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+
+      const activePane = document.getElementById(`tabContent-${tabName}`);
+      if (activePane) activePane.classList.remove('hidden');
+
+      const desktopBtn = document.getElementById(`tabNav-${tabName}`);
+      if (desktopBtn) desktopBtn.classList.add('active');
+
+      const mobileBtn = document.getElementById(`mobileNav-${tabName}`);
+      if (mobileBtn) mobileBtn.classList.add('active');
+
+      if (tabName === 'chart') {
+        const activeProfile = profiles.find(p => p.id === activeProfileId);
+        if (activeProfile) renderChart(activeProfile.history || []);
+      }
+    }
+
+    function getRandomMotivation() {
+      return MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
+    }
+
+    function saveProfilesToStorage() {
+      localStorage.setItem('bmi_pwa_profiles', JSON.stringify(profiles));
+      localStorage.setItem('bmi_pwa_active_profile_id', activeProfileId);
+    }
+
+    function checkProfileStatus() {
+      if (profiles.length === 0) {
+        const defaultProfile = {
+          id: 'prof_' + Date.now(),
+          name: 'Můj profil',
+          gender: 'male',
+          age: 28,
+          height: 175,
+          weight: 72,
+          targetWeight: 68,
+          history: []
+        };
+        profiles = [defaultProfile];
+        activeProfileId = defaultProfile.id;
+        saveProfilesToStorage();
+      } else if (!activeProfileId || !profiles.some(p => p.id === activeProfileId)) {
+        activeProfileId = profiles[0].id;
+      }
+
+      const activeProfile = profiles.find(p => p.id === activeProfileId);
+      loadProfileData(activeProfile);
+    }
+
+    function loadProfileData(profile) {
+      if (!profile) return;
+
+      document.getElementById('userNameDisplay').textContent = profile.name || 'Můj profil';
+      document.getElementById('userAvatar').textContent = (profile.name || 'P').charAt(0).toUpperCase();
+
+      currentGender = profile.gender || 'male';
+      setGender(currentGender, false);
+
+      document.getElementById('ageInput').value = profile.age || 28;
+      document.getElementById('heightInput').value = profile.height || 175;
+
+      document.getElementById('currentWeightInput').value = profile.weight || 72;
+      document.getElementById('currentWeightRange').value = profile.weight || 72;
+      document.getElementById('currentWeightVal').textContent = `${profile.weight || 72} kg`;
+
+      document.getElementById('targetWeightInput').value = profile.targetWeight || 68;
+      document.getElementById('targetWeightRange').value = profile.targetWeight || 68;
+      document.getElementById('targetWeightVal').textContent = `${profile.targetWeight || 68} kg`;
+
+      if (document.getElementById('logWeightInput')) {
+        document.getElementById('logWeightInput').value = profile.weight || 72;
+      }
+
+      calculateBMI();
+      renderHistoryLogs(profile.history || []);
+      renderChart(profile.history || []);
+      renderBadges(profile);
+    }
+
+    function saveCurrentInputsToProfile() {
+      const activeProfile = profiles.find(p => p.id === activeProfileId);
+      if (!activeProfile) return;
+
+      activeProfile.gender = currentGender;
+      activeProfile.age = parseInt(document.getElementById('ageInput').value) || 28;
+      activeProfile.height = parseFloat(document.getElementById('heightInput').value) || 175;
+      activeProfile.weight = parseFloat(document.getElementById('currentWeightInput').value) || 72;
+      activeProfile.targetWeight = parseFloat(document.getElementById('targetWeightInput').value) || 68;
+
+      saveProfilesToStorage();
+    }
+
+    function openProfileModal() {
+      renderProfilesList();
+      document.getElementById('profileModal').classList.remove('hidden');
+    }
+
+    function closeProfileModal() {
+      document.getElementById('profileModal').classList.add('hidden');
+    }
+
+    function renderProfilesList() {
+      const listContainer = document.getElementById('profilesList');
+      if (!listContainer) return;
+
+      listContainer.innerHTML = profiles.map(p => `
+        <div class="flex items-center justify-between p-2.5 rounded-xl border ${p.id === activeProfileId ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-slate-900/60 border-slate-800'} transition">
+          <button type="button" onclick="selectProfile('${p.id}')" class="flex items-center gap-2.5 text-left flex-1 font-medium text-xs text-white">
+            <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-xs uppercase">
+              ${(p.name || 'P').charAt(0)}
+            </div>
+            <span>${p.name}</span>
+            ${p.id === activeProfileId ? '<span class="text-[10px] text-indigo-400 font-bold bg-indigo-500/20 px-2 py-0.5 rounded-full">Aktivní</span>' : ''}
+          </button>
+          ${profiles.length > 1 ? `
+            <button type="button" onclick="deleteProfile('${p.id}')" class="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition" title="Smazat profil">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          ` : ''}
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function createNewProfile(e) {
+      e.preventDefault();
+      const input = document.getElementById('modalNameInput');
+      const name = input.value.trim();
+      if (!name) return;
+
+      const newProf = {
+        id: 'prof_' + Date.now(),
+        name: name,
+        gender: 'male',
+        age: 28,
+        height: 175,
+        weight: 70,
+        targetWeight: 65,
+        history: []
+      };
+
+      profiles.push(newProf);
+      activeProfileId = newProf.id;
+      saveProfilesToStorage();
+      input.value = '';
+
+      renderProfilesList();
+      loadProfileData(newProf);
+      closeProfileModal();
+    }
+
+    function selectProfile(id) {
+      activeProfileId = id;
+      saveProfilesToStorage();
+      const prof = profiles.find(p => p.id === id);
+      loadProfileData(prof);
+      renderProfilesList();
+      closeProfileModal();
+    }
+
+    function deleteProfile(id) {
+      if (profiles.length <= 1) return;
+      profiles = profiles.filter(p => p.id !== id);
+      if (activeProfileId === id) {
+        activeProfileId = profiles[0].id;
+      }
+      saveProfilesToStorage();
+      renderProfilesList();
+      loadProfileData(profiles.find(p => p.id === activeProfileId));
+    }
+
+    function syncControls() {
+      const cWeightRange = document.getElementById('currentWeightRange');
+      const cWeightInput = document.getElementById('currentWeightInput');
+      const cWeightVal = document.getElementById('currentWeightVal');
+
+      const tWeightRange = document.getElementById('targetWeightRange');
+      const tWeightInput = document.getElementById('targetWeightInput');
+      const tWeightVal = document.getElementById('targetWeightVal');
+
+      const ageInp = document.getElementById('ageInput');
+      const heightInp = document.getElementById('heightInput');
+
+      cWeightRange.addEventListener('input', (e) => {
+        cWeightInput.value = e.target.value;
+        cWeightVal.textContent = `${e.target.value} kg`;
+        calculateBMI();
+        saveCurrentInputsToProfile();
+      });
+      cWeightInput.addEventListener('input', (e) => {
+        cWeightRange.value = e.target.value;
+        cWeightVal.textContent = `${e.target.value} kg`;
+        calculateBMI();
+        saveCurrentInputsToProfile();
+      });
+
+      tWeightRange.addEventListener('input', (e) => {
+        tWeightInput.value = e.target.value;
+        tWeightVal.textContent = `${e.target.value} kg`;
+        calculateBMI();
+        saveCurrentInputsToProfile();
+      });
+      tWeightInput.addEventListener('input', (e) => {
+        tWeightRange.value = e.target.value;
+        tWeightVal.textContent = `${e.target.value} kg`;
+        calculateBMI();
+        saveCurrentInputsToProfile();
+      });
+
+      ageInp.addEventListener('input', () => {
+        calculateBMI();
+        saveCurrentInputsToProfile();
+      });
+      heightInp.addEventListener('input', () => {
+        calculateBMI();
+        saveCurrentInputsToProfile();
+      });
+    }
+
+    function setGender(gender, triggerSave = true) {
+      currentGender = gender;
+      const maleBtn = document.getElementById('genderMaleBtn');
+      const femaleBtn = document.getElementById('genderFemaleBtn');
+
+      if (gender === 'male') {
+        maleBtn.className = 'gender-btn flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-medium text-xs sm:text-sm transition-all duration-200 bg-indigo-600 text-white shadow-md';
+        femaleBtn.className = 'gender-btn flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-medium text-xs sm:text-sm transition-all duration-200 text-slate-400 hover:text-white';
+      } else {
+        femaleBtn.className = 'gender-btn flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-medium text-xs sm:text-sm transition-all duration-200 bg-indigo-600 text-white shadow-md';
+        maleBtn.className = 'gender-btn flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-medium text-xs sm:text-sm transition-all duration-200 text-slate-400 hover:text-white';
+      }
+
+      calculateBMI();
+      if (triggerSave) saveCurrentInputsToProfile();
+    }
+
+    function calculateBMI() {
+      const age = parseInt(document.getElementById('ageInput').value) || 25;
+      const heightCm = parseFloat(document.getElementById('heightInput').value) || 170;
+      const weightKg = parseFloat(document.getElementById('currentWeightInput').value) || 70;
+      const targetKg = parseFloat(document.getElementById('targetWeightInput').value) || 70;
+
+      if (heightCm <= 0 || weightKg <= 0) return;
+
+      const heightM = heightCm / 100;
+      const bmi = weightKg / (heightM * heightM);
+      const targetBmi = targetKg / (heightM * heightM);
+
+      const bmiScoreText = document.getElementById('bmiScoreText');
+      const bmiCategoryBadge = document.getElementById('bmiCategoryBadge');
+      const bmiDescriptionText = document.getElementById('bmiDescriptionText');
+      const statusGlow = document.getElementById('statusGlow');
+      const gaugeNeedleGroup = document.getElementById('gaugeNeedleGroup');
+
+      if (bmiScoreText) bmiScoreText.textContent = bmi.toFixed(1);
+
+      let category = "";
+      let badgeBg = "";
+      let glowColor = "";
+      let desc = "";
+      let adviceKey = "normal";
+
+      if (bmi < 18.5) {
+        category = "🍎 Podváha";
+        badgeBg = "bg-sky-500/20 text-sky-400 border-sky-500/30";
+        glowColor = "rgba(56, 189, 248, 0.15)";
+        desc = "Vaše hmotnost je nižší než běžné ideální rozmezí (< 18.5). Doporučujeme postupný kalorický nadbytek.";
+        adviceKey = "underweight";
+      } else if (bmi >= 18.5 && bmi <= 25.0) {
+        category = "🥗 Normální váha";
+        badgeBg = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+        glowColor = "rgba(16, 185, 129, 0.15)";
+        desc = "Skvělá práce! Vaše tělo je v ideální zdravotní kondici (18.5 - 25.0). Udržujte tento vyvážený životní styl!";
+        adviceKey = "normal";
+      } else if (bmi > 25.0 && bmi <= 30.0) {
+        category = "⚡ Nadváha";
+        badgeBg = "bg-amber-500/20 text-amber-400 border-amber-500/30";
+        glowColor = "rgba(245, 158, 11, 0.15)";
+        desc = "Vaše BMI indikuje mírnou nadváhu (25.0 - 30.0). Pravidelný pohyb a úprava stravy přinesou skvělé výsledky.";
+        adviceKey = "overweight";
+      } else {
+        category = "🔥 Obezita";
+        badgeBg = "bg-rose-500/20 text-rose-400 border-rose-500/30";
+        glowColor = "rgba(244, 63, 94, 0.15)";
+        desc = "Vaše BMI přesahuje hodnotu 30. Postupné kroky a pravidelné týdenní vážení vám pomohou na cestě k lepší zdravé kondici.";
+        adviceKey = "obesity";
+      }
+
+      if (bmiCategoryBadge) {
+        bmiCategoryBadge.textContent = category;
+        bmiCategoryBadge.className = `px-3 py-1 rounded-full text-xs font-bold border ${badgeBg}`;
+      }
+      if (bmiDescriptionText) bmiDescriptionText.textContent = desc;
+      if (statusGlow) statusGlow.style.backgroundColor = glowColor;
+
+      const adviceInfo = CATEGORY_ADVICE[adviceKey];
+      if (adviceInfo) {
+        const adviceIconEl = document.getElementById('adviceIcon');
+        const adviceTitleEl = document.getElementById('adviceTitle');
+        const adviceBodyEl = document.getElementById('adviceBody');
+
+        if (adviceIconEl) adviceIconEl.textContent = adviceInfo.icon;
+        if (adviceTitleEl) adviceTitleEl.textContent = adviceInfo.title;
+
+        const quoteIndex = Math.floor(Math.abs(weightKg * 10) % adviceInfo.quotes.length);
+        if (adviceBodyEl) adviceBodyEl.textContent = adviceInfo.quotes[quoteIndex];
+      }
+
+      if (gaugeNeedleGroup) {
+        const clampedBmi = Math.min(Math.max(bmi, 15), 35);
+        const angle = ((clampedBmi - 15) / (35 - 15)) * 180 - 90;
+        gaugeNeedleGroup.style.transform = `rotate(${angle}deg)`;
+      }
+
+      const targetBmiText = document.getElementById('targetBmiText');
+      const targetWeightDiffText = document.getElementById('targetWeightDiffText');
+      const totalProgressDiffText = document.getElementById('totalProgressDiffText');
+
+      if (targetBmiText) targetBmiText.textContent = targetBmi.toFixed(1);
+
+      const weightDiff = (weightKg - targetKg).toFixed(1);
+      if (targetWeightDiffText) {
+        if (weightDiff > 0) {
+          targetWeightDiffText.textContent = `-${weightDiff} kg do cíle`;
+          targetWeightDiffText.className = "text-base sm:text-lg font-bold text-amber-400 mt-0.5 block";
+        } else if (weightDiff < 0) {
+          targetWeightDiffText.textContent = `+${Math.abs(weightDiff)} kg do cíle`;
+          targetWeightDiffText.className = "text-base sm:text-lg font-bold text-sky-400 mt-0.5 block";
+        } else {
+          targetWeightDiffText.textContent = `Cíl dosažen! 🎉`;
+          targetWeightDiffText.className = "text-base sm:text-lg font-bold text-emerald-400 mt-0.5 block";
+        }
+      }
+
+      const activeProfile = profiles.find(p => p.id === activeProfileId);
+      if (activeProfile && activeProfile.history && activeProfile.history.length > 0 && totalProgressDiffText) {
+        const initialWeight = activeProfile.history[0].weight;
+        const diff = (weightKg - initialWeight).toFixed(1);
+        if (diff < 0) {
+          totalProgressDiffText.textContent = `${diff} kg 🎉`;
+          totalProgressDiffText.className = "text-base sm:text-lg font-bold text-emerald-400 mt-0.5 block";
+        } else if (diff > 0) {
+          totalProgressDiffText.textContent = `+${diff} kg 📈`;
+          totalProgressDiffText.className = "text-base sm:text-lg font-bold text-amber-400 mt-0.5 block";
+        } else {
+          totalProgressDiffText.textContent = `0.0 kg ⚖️`;
+          totalProgressDiffText.className = "text-base sm:text-lg font-bold text-indigo-400 mt-0.5 block";
+        }
+      }
+
+      renderBadges(activeProfile);
+    }
+
+    function quickLogCurrentWeight() {
+      const weightVal = parseFloat(document.getElementById('currentWeightInput').value);
+      const dateStr = new Date().toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' });
+      addWeightEntry(dateStr, weightVal, "Rychlé měření");
+    }
+
+    document.getElementById('weeklyLogForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const rawDate = document.getElementById('logDateInput').value;
+      const weightVal = parseFloat(document.getElementById('logWeightInput').value);
+      const noteVal = document.getElementById('logNoteInput').value.trim();
+
+      if (!rawDate || isNaN(weightVal)) return;
+
+      const formattedDate = new Date(rawDate).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' });
+      addWeightEntry(formattedDate, weightVal, noteVal);
+
+      document.getElementById('logNoteInput').value = '';
+    });
+
+    function addWeightEntry(dateStr, weight, note = "") {
+      const activeProfile = profiles.find(p => p.id === activeProfileId);
+      if (!activeProfile) return;
+
+      activeProfile.gender = currentGender;
+      activeProfile.age = parseInt(document.getElementById('ageInput').value);
+      activeProfile.height = parseFloat(document.getElementById('heightInput').value);
+      activeProfile.weight = weight;
+      activeProfile.targetWeight = parseFloat(document.getElementById('targetWeightInput').value);
+
+      if (!activeProfile.history) activeProfile.history = [];
+
+      const motivationalMsg = getRandomMotivation();
+      const coachQuoteEl = document.getElementById('coachQuote');
+      if (coachQuoteEl) coachQuoteEl.textContent = `"${motivationalMsg}"`;
+
+      const isGoalReached = Math.abs(weight - activeProfile.targetWeight) <= 0.5;
+
+      activeProfile.history.push({
+        id: 'log_' + Date.now(),
+        date: dateStr,
+        weight: weight,
+        bmi: parseFloat(document.getElementById('bmiScoreText').textContent),
+        note: note,
+        motivation: motivationalMsg
+      });
+
+      document.getElementById('currentWeightInput').value = weight;
+      document.getElementById('currentWeightRange').value = weight;
+      document.getElementById('currentWeightVal').textContent = `${weight} kg`;
+
+      saveProfilesToStorage();
+      calculateBMI();
+      renderHistoryLogs(activeProfile.history);
+      renderChart(activeProfile.history);
+
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: isGoalReached ? 120 : 60,
+          spread: isGoalReached ? 80 : 50,
+          origin: { y: 0.6 }
+        });
+      }
+    }
+
+    function deleteHistoryEntry(id) {
+      const activeProfile = profiles.find(p => p.id === activeProfileId);
+      if (!activeProfile || !activeProfile.history) return;
+
+      activeProfile.history = activeProfile.history.filter(h => h.id !== id);
+      saveProfilesToStorage();
+
+      renderHistoryLogs(activeProfile.history);
+      renderChart(activeProfile.history);
+      renderBadges(activeProfile);
+    }
+
+    function renderHistoryLogs(historyData = []) {
+      const container = document.getElementById('historyLogsContainer');
+      if (!container) return;
+
+      if (historyData.length === 0) {
+        container.innerHTML = `
+          <div class="p-6 text-center text-slate-500 text-xs italic bg-slate-950/40 rounded-2xl border border-slate-900">
+            Zatím nemáš žádné týdenní záznamy. Zapiš svou dnešní váhu v záložce výše! 📝
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = historyData.slice().reverse().map(h => `
+        <div class="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800 text-xs hover:border-slate-700 transition space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white text-sm">${h.weight} kg</span>
+              <span class="text-[10px] text-indigo-400 font-semibold px-2 py-0.5 bg-indigo-500/10 rounded-full">BMI ${h.bmi || '-'}</span>
+              <span class="text-[11px] text-slate-400">📅 ${h.date}</span>
+            </div>
+            <button onclick="deleteHistoryEntry('${h.id}')" class="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition" title="Odstranit">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+          ${h.note ? `<p class="text-[11px] text-slate-300 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80">💬 ${h.note}</p>` : ''}
+          ${h.motivation ? `<p class="text-[10px] text-emerald-400/90 italic">✨ ${h.motivation}</p>` : ''}
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function renderChart(historyData = []) {
+      const ctx = document.getElementById('weightChart');
+      if (!ctx) return;
+
+      const labels = historyData.map(h => h.date);
+      const weights = historyData.map(h => h.weight);
+      const targetKg = parseFloat(document.getElementById('targetWeightInput').value) || 70;
+      const targetLine = new Array(labels.length || 1).fill(targetKg);
+
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: labels.length ? labels : ['Dnes'],
+          datasets: [
+            {
+              label: 'Váha (kg)',
+              data: weights.length ? weights : [parseFloat(document.getElementById('currentWeightInput').value)],
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99, 102, 241, 0.15)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.35,
+              pointBackgroundColor: '#a855f7',
+              pointRadius: 5
+            },
+            {
+              label: 'Cílová váha',
+              data: targetLine,
+              borderColor: '#10b981',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+            y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+          }
+        }
+      });
+
+      const weeklyRateStat = document.getElementById('weeklyRateStat');
+      const targetEstDateStat = document.getElementById('targetEstDateStat');
+      const streakStat = document.getElementById('streakStat');
+
+      if (streakStat) streakStat.textContent = `${historyData.length} týdnů 🔥`;
+
+      if (historyData.length >= 2) {
+        const diff = (historyData[historyData.length - 1].weight - historyData[0].weight);
+        const weeks = Math.max(1, historyData.length - 1);
+        const avgPerWeek = (diff / weeks).toFixed(1);
+
+        if (weeklyRateStat) {
+          weeklyRateStat.textContent = `${avgPerWeek > 0 ? '+' : ''}${avgPerWeek} kg / týden`;
+        }
+
+        const remainingToGoal = Math.abs(document.getElementById('currentWeightInput').value - targetKg);
+        if (Math.abs(avgPerWeek) > 0 && remainingToGoal > 0) {
+          const weeksLeft = Math.ceil(remainingToGoal / Math.abs(avgPerWeek));
+          if (targetEstDateStat) targetEstDateStat.textContent = `za ~${weeksLeft} týdnů 🎯`;
+        } else {
+          if (targetEstDateStat) targetEstDateStat.textContent = `Cíl blízko! ✨`;
+        }
+      }
+    }
+
+    function renderBadges(profile) {
+      const container = document.getElementById('badgesGrid');
+      const badgeScore = document.getElementById('badgeScore');
+      if (!container || !profile) return;
+
+      const history = profile.history || [];
+      const currentW = parseFloat(document.getElementById('currentWeightInput').value) || 70;
+      const targetW = parseFloat(document.getElementById('targetWeightInput').value) || 68;
+      const initialW = history.length > 0 ? history[0].weight : currentW;
+      
+      const heightM = (parseFloat(document.getElementById('heightInput').value) || 175) / 100;
+      const currentBmi = currentW / (heightM * heightM);
+
+      const isGainingGoal = targetW > initialW;
+
+      const badgeDefinitions = [
+        { 
+          id: 'first_log', 
+          title: 'První krok 🚀', 
+          desc: 'Zaznamenej své první týdenní měření hmotnosti.', 
+          icon: '🎯',
+          check: () => history.length >= 1
+        },
+        { 
+          id: 'streak_3', 
+          title: 'Vytrvalost 🔥', 
+          desc: 'Alespoň 3 zaznamenané týdny v deníku.', 
+          icon: '⚡',
+          check: () => history.length >= 3
+        },
+        { 
+          id: 'progress_2kg', 
+          title: isGainingGoal ? 'První 2 kg nahoře 🎉' : 'První 2 kg dole 🎉', 
+          desc: isGainingGoal ? 'Zvýšení hmotnosti o více než 2 kg směrem k cíli.' : 'Snížení hmotnosti o více než 2 kg směrem k cíli.', 
+          icon: isGainingGoal ? '📈' : '📉',
+          check: () => {
+            if (history.length === 0) return false;
+            const diff = currentW - initialW;
+            return isGainingGoal ? diff >= 2 : diff <= -2;
+          }
+        },
+        { 
+          id: 'normal_bmi', 
+          title: 'BMI v Normě 🥗', 
+          desc: 'Dosažení ideálního BMI pásma (18.5 - 25.0).', 
+          icon: '🌟',
+          check: () => currentBmi >= 18.5 && currentBmi <= 25.0
+        },
+        { 
+          id: 'reach_target', 
+          title: 'Cíl Dosažen 🏆', 
+          desc: 'Dosažení nebo překonání stanovené cílové váhy!', 
+          icon: '🥇',
+          check: () => Math.abs(currentW - targetW) <= 0.5
+        },
+        { 
+          id: 'notes_master', 
+          title: 'Deníkář 📝', 
+          desc: 'Přidej alespoň 3 poznámky ke svým měřením.', 
+          icon: '💬',
+          check: () => history.filter(h => h.note && h.note.length > 0).length >= 3
+        }
+      ];
+
+      let unlockedCount = 0;
+
+      const renderedBadges = badgeDefinitions.map(badge => {
+        const unlocked = badge.check();
+        if (unlocked) unlockedCount++;
+
+        return `
+          <div class="p-4 rounded-2xl border ${unlocked ? 'bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-500/10' : 'bg-slate-950/30 border-slate-900 opacity-50'} text-center space-y-2 transition duration-200">
+            <div class="text-3xl">${badge.icon}</div>
+            <h4 class="font-bold text-xs ${unlocked ? 'text-white' : 'text-slate-400'}">${badge.title}</h4>
+            <p class="text-[10px] text-slate-400 leading-tight">${badge.desc}</p>
+            <span class="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold ${unlocked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'}">
+              ${unlocked ? 'Odemčeno ✅' : 'Zamčeno 🔒'}
+            </span>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = renderedBadges;
+      if (badgeScore) badgeScore.textContent = `${unlockedCount} / ${badgeDefinitions.length} Odemčeno 🎖️`;
+    }
+
+    function clearHistory() {
+      const activeProfile = profiles.find(p => p.id === activeProfileId);
+      if (activeProfile) {
+        activeProfile.history = [];
+        saveProfilesToStorage();
+        renderHistoryLogs([]);
+        renderChart([]);
+        renderBadges(activeProfile);
+      }
+    }
+
+    function initServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      // Default todays date in log input
+      const logDateInput = document.getElementById('logDateInput');
+      if (logDateInput) {
+        logDateInput.value = new Date().toISOString().split('T')[0];
+      }
+
+      syncControls();
+      checkProfileStatus();
+      initServiceWorker();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
